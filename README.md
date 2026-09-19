@@ -33,3 +33,67 @@ This repository is a reusable coding assignment template for evaluating backend 
 3. **Raise a Pull Request** back to this repository (`main` branch) with your full solution.
 
 Your PR branch should be named: `solution/<your-name>` (e.g., `solution/jane-doe`).
+
+## Implementation
+
+This repository contains a working Go implementation of the assignment.
+See [`docs/DESIGN.md`](docs/DESIGN.md) for schema, idempotency, and
+concurrency design notes.
+
+### Requirements
+
+- Go 1.27+
+- Docker (for local PostgreSQL via `docker-compose.yml`), or any reachable
+  PostgreSQL instance
+
+### Run locally
+
+```bash
+make up                       # starts Postgres on localhost:5432
+cp .env.example .env          # adjust if needed
+make run                      # runs the API on :8080, applying migrations on boot
+```
+
+```bash
+# create two wallets
+curl -X POST localhost:8080/wallets -d '{"id":"wallet_1","initialBalance":1000}'
+curl -X POST localhost:8080/wallets -d '{"id":"wallet_2","initialBalance":0}'
+
+# transfer funds
+curl -X POST localhost:8080/transfers -d '{
+  "idempotencyKey": "abc123",
+  "fromWalletId": "wallet_1",
+  "toWalletId": "wallet_2",
+  "amount": 100
+}'
+```
+
+### Test
+
+```bash
+make test              # unit + service + http tests, no database required
+make up                # start Postgres, if not already running
+make test-integration  # Postgres-backed concurrency/idempotency tests
+```
+
+### HTTPS configuration
+
+The server uses HTTP by default. Set `TLS_CERT_FILE` and `TLS_KEY_FILE` to
+serve HTTPS with a configured certificate. Alternatively, set `DEFAULT_SSL=true`
+to serve HTTPS with an ephemeral self-signed certificate, which is useful for
+local development. Certificate files take precedence when both are provided;
+the certificate and key must always be configured together.
+
+### Project layout
+
+```
+cmd/server                     entrypoint: config, wiring, HTTP server
+internal/controller             transport: routing, DTOs, error mapping
+internal/service                business logic: transfer workflow, idempotency
+internal/domain                 entities, state machine, validation
+internal/repository              repository interfaces + UnitOfWork
+internal/repository/postgres     pgx-based production implementation
+internal/repository/memory       in-memory implementation for unit tests
+internal/migrations              embedded SQL schema migrations
+```
+
