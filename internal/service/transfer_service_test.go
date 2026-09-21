@@ -267,3 +267,43 @@ func TestCreateTransfer_IdempotencyKeyRequired(t *testing.T) {
 		t.Fatalf("err = %v, want ErrIdempotencyKeyRequired", err)
 	}
 }
+
+func TestTransferService_ReadTransferAndHistory(t *testing.T) {
+	transfers, wallets := newTestServices(t)
+	ctx := context.Background()
+	seedWallet(t, wallets, "wallet_1", 500)
+	seedWallet(t, wallets, "wallet_2", 0)
+
+	created, err := transfers.CreateTransfer(ctx, service.CreateTransferInput{
+		IdempotencyKey: "read-path",
+		FromWalletID:   "wallet_1",
+		ToWalletID:     "wallet_2",
+		Amount:         100,
+	})
+	if err != nil {
+		t.Fatalf("CreateTransfer: %v", err)
+	}
+
+	found, err := transfers.GetTransfer(ctx, created.Transfer.ID)
+	if err != nil {
+		t.Fatalf("GetTransfer: %v", err)
+	}
+	if found.Transfer.ID != created.Transfer.ID || len(found.LedgerEntries) != 2 {
+		t.Fatalf("GetTransfer returned ID %q and %d ledger entries", found.Transfer.ID, len(found.LedgerEntries))
+	}
+
+	history, err := wallets.ListTransferHistory(ctx, "wallet_1")
+	if err != nil {
+		t.Fatalf("ListTransferHistory: %v", err)
+	}
+	if len(history) != 1 || history[0].ID != created.Transfer.ID {
+		t.Fatalf("history = %#v, want one transfer %q", history, created.Transfer.ID)
+	}
+
+	if _, err := transfers.GetTransfer(ctx, "missing"); !errors.Is(err, domain.ErrTransferNotFound) {
+		t.Fatalf("missing transfer error = %v, want ErrTransferNotFound", err)
+	}
+	if _, err := wallets.ListTransferHistory(ctx, "missing"); !errors.Is(err, domain.ErrWalletNotFound) {
+		t.Fatalf("missing wallet history error = %v, want ErrWalletNotFound", err)
+	}
+}

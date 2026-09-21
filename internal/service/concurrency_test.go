@@ -14,8 +14,8 @@ import (
 // TestCreateTransfer_ConcurrentDebits fires many concurrent transfers out of
 // the same wallet and asserts the final balance and ledger are exactly what
 // a serial execution would produce, with no lost updates or double
-// spending. This exercises the service's concurrency contract against real
-// PostgreSQL transactions and row locks.
+// spending. The PostgreSQL-specific locking behavior is covered by the
+// integration tests in internal/repository/postgres.
 func TestCreateTransfer_ConcurrentDebits(t *testing.T) {
 	transfers, wallets := newTestServices(t)
 	ctx := context.Background()

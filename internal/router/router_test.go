@@ -73,6 +73,22 @@ func TestTransferEndpoint_EndToEnd(t *testing.T) {
 	if walletBody.Balance != 400 {
 		t.Errorf("wallet_1 balance = %d, want 400 (duplicate must not double-debit)", walletBody.Balance)
 	}
+
+	var transferBody struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &transferBody); err != nil {
+		t.Fatalf("decode transfer response: %v", err)
+	}
+	getTransfer := doJSON(t, r, http.MethodGet, "/transfers/"+transferBody.ID, nil)
+	if getTransfer.Code != http.StatusOK {
+		t.Fatalf("get transfer status = %d, want 200, body=%s", getTransfer.Code, getTransfer.Body.String())
+	}
+
+	history := doJSON(t, r, http.MethodGet, "/wallets/wallet_1/transfers", nil)
+	if history.Code != http.StatusOK {
+		t.Fatalf("list history status = %d, want 200, body=%s", history.Code, history.Body.String())
+	}
 }
 
 func TestTransferEndpoint_UnknownWalletReturns404(t *testing.T) {
@@ -103,5 +119,47 @@ func TestTransferEndpoint_InvalidAmountReturns400(t *testing.T) {
 	})
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestRouter_CoversWalletErrorsAndHealth(t *testing.T) {
+	r := newTestRouter(t)
+
+	health := doJSON(t, r, http.MethodGet, "/healthz", nil)
+	if health.Code != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", health.Code)
+	}
+
+	badJSON := httptest.NewRequest(http.MethodPost, "/wallets", bytes.NewBufferString("{"))
+	badJSON.Header.Set("Content-Type", "application/json")
+	badJSONResponse := httptest.NewRecorder()
+	r.ServeHTTP(badJSONResponse, badJSON)
+	if badJSONResponse.Code != http.StatusBadRequest {
+		t.Fatalf("malformed JSON status = %d, want 400", badJSONResponse.Code)
+	}
+
+	created := doJSON(t, r, http.MethodPost, "/wallets", map[string]any{"id": "wallet_1", "initialBalance": 10})
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create wallet status = %d, want 201", created.Code)
+	}
+
+	duplicate := doJSON(t, r, http.MethodPost, "/wallets", map[string]any{"id": "wallet_1", "initialBalance": 10})
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate wallet status = %d, want 409", duplicate.Code)
+	}
+
+	missingBalance := doJSON(t, r, http.MethodGet, "/wallets/missing/balance", nil)
+	if missingBalance.Code != http.StatusNotFound {
+		t.Fatalf("missing balance status = %d, want 404", missingBalance.Code)
+	}
+
+	missingHistory := doJSON(t, r, http.MethodGet, "/wallets/missing/transfers", nil)
+	if missingHistory.Code != http.StatusNotFound {
+		t.Fatalf("missing history status = %d, want 404", missingHistory.Code)
+	}
+
+	missingTransfer := doJSON(t, r, http.MethodGet, "/transfers/missing", nil)
+	if missingTransfer.Code != http.StatusNotFound {
+		t.Fatalf("missing transfer status = %d, want 404", missingTransfer.Code)
 	}
 }

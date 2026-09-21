@@ -8,7 +8,7 @@
 // bundled docker-compose.yml:
 //
 //	docker compose up -d postgres
-//	TEST_DATABASE_URL="postgres://wallet:wallet@localhost:5432/wallet_transfer?sslmode=disable" \
+//	TEST_DATABASE_URL="postgres://user:password@localhost:5432/database?sslmode=disable" \
 //	  go test -tags=integration ./internal/repository/postgres/... -v
 package postgres_test
 
@@ -18,6 +18,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -117,6 +118,63 @@ func TestPostgres_ConcurrentTransfers_NoLostUpdates(t *testing.T) {
 	}
 	if to.Balance != wantTo {
 		t.Errorf("to wallet balance = %d, want %d", to.Balance, wantTo)
+	}
+}
+
+// TestPostgres_OppositeDirectionTransfers_NoDeadlock verifies that concurrent
+// transfers between the same wallets complete even when their directions are
+// reversed. Each request must lock the wallets in the same database order.
+func TestPostgres_OppositeDirectionTransfers_NoDeadlock(t *testing.T) {
+	pool := newTestPool(t)
+	transfers, wallets := newTestServices(t, pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+
+	firstID := "it-deadlock-a-" + uuid.NewString()
+	secondID := "it-deadlock-b-" + uuid.NewString()
+	if _, err := wallets.CreateWallet(ctx, service.CreateWalletInput{ID: firstID, InitialBalance: 1_000}); err != nil {
+		t.Fatalf("create first wallet: %v", err)
+	}
+	if _, err := wallets.CreateWallet(ctx, service.CreateWalletInput{ID: secondID, InitialBalance: 1_000}); err != nil {
+		t.Fatalf("create second wallet: %v", err)
+	}
+
+	results := make(chan error, 2)
+	go func() {
+		_, err := transfers.CreateTransfer(ctx, service.CreateTransferInput{
+			IdempotencyKey: "it-deadlock-a-to-b-" + uuid.NewString(),
+			FromWalletID:   firstID,
+			ToWalletID:     secondID,
+			Amount:         10,
+		})
+		results <- err
+	}()
+	go func() {
+		_, err := transfers.CreateTransfer(ctx, service.CreateTransferInput{
+			IdempotencyKey: "it-deadlock-b-to-a-" + uuid.NewString(),
+			FromWalletID:   secondID,
+			ToWalletID:     firstID,
+			Amount:         10,
+		})
+		results <- err
+	}()
+
+	for i := 0; i < 2; i++ {
+		if err := <-results; err != nil {
+			t.Fatalf("opposite-direction transfer %d: %v", i+1, err)
+		}
+	}
+
+	first, err := wallets.GetWallet(ctx, firstID)
+	if err != nil {
+		t.Fatalf("get first wallet: %v", err)
+	}
+	second, err := wallets.GetWallet(ctx, secondID)
+	if err != nil {
+		t.Fatalf("get second wallet: %v", err)
+	}
+	if first.Balance != 1_000 || second.Balance != 1_000 {
+		t.Fatalf("balances = (%d, %d), want (1000, 1000)", first.Balance, second.Balance)
 	}
 }
 
