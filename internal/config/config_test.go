@@ -14,7 +14,7 @@ func setRequiredEnvironment(t *testing.T) {
 
 func TestLoadDefaultSSL(t *testing.T) {
 	setRequiredEnvironment(t)
-	t.Setenv("DEFAULT_SSL", "true")
+	t.Setenv("SSL_ENABLED", "true")
 
 	cfg, err := Load()
 	if err != nil {
@@ -38,7 +38,7 @@ func TestLoadDefaultSSL(t *testing.T) {
 
 func TestLoadRejectsPartialCertificatePair(t *testing.T) {
 	setRequiredEnvironment(t)
-	t.Setenv("DEFAULT_SSL", "false")
+	t.Setenv("SSL_ENABLED", "true")
 	t.Setenv("TLS_CERT_FILE", "server.crt")
 
 	if _, err := Load(); err == nil {
@@ -46,17 +46,39 @@ func TestLoadRejectsPartialCertificatePair(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsInvalidDefaultSSL(t *testing.T) {
+func TestLoadRejectsInvalidSSLEnabled(t *testing.T) {
 	setRequiredEnvironment(t)
-	t.Setenv("DEFAULT_SSL", "sometimes")
+	t.Setenv("SSL_ENABLED", "sometimes")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want invalid boolean error")
 	}
 }
 
+func TestLoadMaxClaimAttempts(t *testing.T) {
+	setRequiredEnvironment(t)
+	t.Setenv("MAX_CLAIM_ATTEMPTS", "7")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.MaxClaimAttempts != 7 {
+		t.Fatalf("MaxClaimAttempts = %d, want 7", cfg.MaxClaimAttempts)
+	}
+}
+
+func TestLoadRejectsInvalidMaxClaimAttempts(t *testing.T) {
+	setRequiredEnvironment(t)
+	t.Setenv("MAX_CLAIM_ATTEMPTS", "0")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want invalid max claim attempts error")
+	}
+}
+
 func TestTLSConfiguredWithCertificatePair(t *testing.T) {
-	cfg := Config{TLSCertFile: "server.crt", TLSKeyFile: "server.key"}
+	cfg := Config{SSLEnabled: true, TLSCertFile: "server.crt", TLSKeyFile: "server.key"}
 	if !cfg.TLSConfigured() {
 		t.Fatal("TLSConfigured() = false, want true")
 	}

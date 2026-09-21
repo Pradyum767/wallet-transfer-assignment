@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/wallet-transfer-assignment/wallet-transfer/internal/repository/memory"
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/router"
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/service"
+	"github.com/wallet-transfer-assignment/wallet-transfer/internal/testutil"
 )
 
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
-	uow := memory.NewUnitOfWork(memory.NewStore())
+	uow := testutil.NewMockUnitOfWork()
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))
 	transfers := service.NewTransferService(uow, service.WithLogger(logger))
 	wallets := service.NewWalletService(uow, service.WithLogger(logger))

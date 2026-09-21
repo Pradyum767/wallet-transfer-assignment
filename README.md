@@ -71,18 +71,17 @@ curl -X POST localhost:8080/transfers -d '{
 ### Test
 
 ```bash
-make test              # unit + service + http tests, no database required
-make up                # start Postgres, if not already running
+make test              # service + HTTP tests with repository mocks
 make test-integration  # Postgres-backed concurrency/idempotency tests
 ```
 
 ### HTTPS configuration
 
-The server uses HTTP by default. Set `TLS_CERT_FILE` and `TLS_KEY_FILE` to
-serve HTTPS with a configured certificate. Alternatively, set `DEFAULT_SSL=true`
-to serve HTTPS with an ephemeral self-signed certificate, which is useful for
-local development. Certificate files take precedence when both are provided;
-the certificate and key must always be configured together.
+The server uses HTTP by default. Set `SSL_ENABLED=true` to serve HTTPS. When
+`TLS_CERT_FILE` and `TLS_KEY_FILE` are both provided, they configure the HTTPS
+certificate. When they are omitted, the server generates an ephemeral
+self-signed certificate for local development. The certificate and key must be
+configured together when either is provided.
 
 ### Project layout
 
@@ -93,7 +92,6 @@ internal/service                business logic: transfer workflow, idempotency
 internal/domain                 entities, state machine, validation
 internal/repository              repository interfaces + UnitOfWork
 internal/repository/postgres     pgx-based production implementation
-internal/repository/memory       in-memory implementation for unit tests
 internal/migrations              embedded SQL schema migrations
 ```
 

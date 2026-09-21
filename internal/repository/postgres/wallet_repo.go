@@ -38,7 +38,7 @@ func (r *walletRepo) scanWallet(ctx context.Context, query string, id string) (*
 	var w domain.Wallet
 	err := row.Scan(&w.ID, &w.Balance, &w.CreatedAt, &w.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, domain.ErrWalletNotFound
+		return nil, domain.WalletNotFoundError{ID: id}
 	}
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (r *walletRepo) UpdateBalance(ctx context.Context, id string, newBalance in
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return domain.ErrWalletNotFound
+		return domain.WalletNotFoundError{ID: id}
 	}
 	return nil
 }

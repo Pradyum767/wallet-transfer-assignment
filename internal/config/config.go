@@ -16,12 +16,14 @@ type Config struct {
 	DatabaseURL string
 	// LogLevel is one of debug, info, warn, error.
 	LogLevel string
-	// TLSCertFile and TLSKeyFile enable HTTPS when both paths are provided.
+	// MaxClaimAttempts bounds retries while claiming an idempotency key.
+	MaxClaimAttempts int
+	// SSLEnabled controls whether the server serves HTTPS instead of HTTP.
+	SSLEnabled bool
+	// TLSCertFile and TLSKeyFile configure the HTTPS certificate and key. When
+	// SSL is enabled and both are empty, an ephemeral certificate is used.
 	TLSCertFile string
 	TLSKeyFile  string
-	// DefaultSSL enables HTTPS with an ephemeral self-signed certificate when
-	// no certificate files are configured.
-	DefaultSSL bool
 }
 
 // Load reads configuration from the environment, applying sane defaults for
@@ -34,23 +36,28 @@ func Load() (Config, error) {
 		TLSCertFile: getEnv("TLS_CERT_FILE", ""),
 		TLSKeyFile:  getEnv("TLS_KEY_FILE", ""),
 	}
-	defaultSSL, err := strconv.ParseBool(getEnv("DEFAULT_SSL", "false"))
-	if err != nil {
-		return Config{}, fmt.Errorf("DEFAULT_SSL must be a boolean: %w", err)
+	maxClaimAttempts, err := strconv.Atoi(getEnv("MAX_CLAIM_ATTEMPTS", "3"))
+	if err != nil || maxClaimAttempts < 1 {
+		return Config{}, fmt.Errorf("MAX_CLAIM_ATTEMPTS must be a positive integer")
 	}
-	cfg.DefaultSSL = defaultSSL
+	cfg.MaxClaimAttempts = maxClaimAttempts
+	sslEnabled, err := strconv.ParseBool(getEnv("SSL_ENABLED", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("SSL_ENABLED must be a boolean: %w", err)
+	}
+	cfg.SSLEnabled = sslEnabled
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
-	if (cfg.TLSCertFile == "") != (cfg.TLSKeyFile == "") {
+	if cfg.SSLEnabled && (cfg.TLSCertFile == "") != (cfg.TLSKeyFile == "") {
 		return Config{}, fmt.Errorf("TLS_CERT_FILE and TLS_KEY_FILE must be provided together")
 	}
 	return cfg, nil
 }
 
-// TLSConfigured reports whether the server should serve HTTPS.
+// TLSConfigured reports whether SSL is enabled for the server.
 func (c Config) TLSConfigured() bool {
-	return c.DefaultSSL || (c.TLSCertFile != "" && c.TLSKeyFile != "")
+	return c.SSLEnabled
 }
 
 func getEnv(key, fallback string) string {

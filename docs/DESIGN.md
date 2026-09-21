@@ -120,10 +120,9 @@ See [`internal/migrations/sql/0001_init.sql`](../internal/migrations/sql/0001_in
   per wallet pair but must never silently retry-and-drop a client request;
   blocking briefly under contention is preferable to surfacing spurious
   conflicts to the caller.
-- Verified by `internal/service/concurrency_test.go` (in-memory,
-  behavioral) and `internal/repository/postgres/postgres_integration_test.go`
-  (real Postgres, `-tags=integration`, fires 100 concurrent transfers and
-  asserts the exact expected final balances — no lost updates).
+- Verified by `internal/service/concurrency_test.go` and
+  `internal/repository/postgres/postgres_integration_test.go` against real
+  PostgreSQL row locks and transactions.
 
 ## Layering
 
@@ -134,33 +133,29 @@ internal/service   business logic: transfer workflow, idempotency, locking order
 internal/domain    entities, state machine, validation, sentinel errors
 internal/repository            interfaces (WalletRepository, TransferRepository, ...)
 internal/repository/postgres   pgx-based implementation + UnitOfWork
-internal/repository/memory     in-memory implementation for fast unit tests
 internal/migrations            embedded SQL migrations, applied on startup
 ```
 
-The service layer depends only on `internal/repository`'s interfaces, so
-`internal/service`'s tests run against `internal/repository/memory` with no
-database at all, while `cmd/server` wires the same service against
-`internal/repository/postgres` for real use.
+The service layer depends only on `internal/repository`'s interfaces. The
+application uses `internal/repository/postgres`, while service and HTTP tests
+use repository mocks from `internal/testutil`.
 
 ## Testing
 
 - `internal/domain`: state machine and validation unit tests.
-- `internal/service`: business logic against the in-memory repository —
+- `internal/service`: business logic against repository mocks —
   success, insufficient funds, idempotent replay, idempotency conflict,
   wallet-not-found (key not consumed), concurrent debits, concurrent
   duplicate requests.
 - `internal/controller`: end-to-end HTTP tests (`httptest`) covering the full
   request/response contract, including the idempotent-replay header and
   error status mapping.
-- `internal/repository/postgres` (`-tags=integration`, requires a running
-  Postgres — see `docker-compose.yml`): the same concurrency and
-  idempotency guarantees, but exercised against real row locks and
-  transactions instead of the in-memory test double.
+- `internal/repository/postgres`: concurrency and idempotency guarantees
+  exercised against real row locks and transactions when the integration
+  suite is run.
 
-Run `go test ./... -cover` for everything except the integration suite,
-which is intentionally excluded from the default build so CI doesn't need
-a database to run the unit/service/http tests.
+Run `go test ./... -cover` for the mock-backed tests. Run the PostgreSQL
+integration suite separately with `make test-integration`.
 
 ## Tradeoffs and assumptions
 
@@ -175,7 +170,3 @@ a database to run the unit/service/http tests.
   was chosen over `SERIALIZABLE` isolation: it gives the same correctness
   guarantee for this access pattern (lock the rows you're about to
   mutate) without the added complexity of retrying serialization failures.
-- The in-memory repository serializes all transactions behind one mutex;
-  it's a fast test double for business-logic correctness, not a proof of
-  the Postgres locking strategy — that's what the integration suite is
-  for.

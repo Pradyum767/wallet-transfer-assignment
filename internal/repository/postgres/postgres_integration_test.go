@@ -2,8 +2,7 @@
 
 // Integration tests against a real PostgreSQL instance, verifying that the
 // pgx-based repositories and row-level locking behave correctly under real
-// concurrent transactions (not just the in-memory test double used by the
-// default unit test suite).
+// concurrent transactions.
 //
 // Run with a live Postgres reachable at TEST_DATABASE_URL, e.g. via the
 // bundled docker-compose.yml:
@@ -52,7 +51,7 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 
 func newTestServices(t *testing.T, pool *pgxpool.Pool) (*service.TransferService, *service.WalletService) {
 	t.Helper()
-	uow := postgres.NewUnitOfWork(pool)
+	uow := postgres.NewUnitOfWork(pool, 3)
 	return service.NewTransferService(uow), service.NewWalletService(uow)
 }
 
@@ -60,8 +59,7 @@ func newTestServices(t *testing.T, pool *pgxpool.Pool) (*service.TransferService
 // transfers between two real wallets and asserts the final balances match a
 // serial execution exactly, proving SELECT ... FOR UPDATE row locking
 // prevents lost updates and double spending under genuine concurrent
-// Postgres transactions (unlike the in-memory test double, which is
-// serialized by a single coarse-grained mutex).
+// Postgres transactions.
 func TestPostgres_ConcurrentTransfers_NoLostUpdates(t *testing.T) {
 	pool := newTestPool(t)
 	transfers, wallets := newTestServices(t, pool)

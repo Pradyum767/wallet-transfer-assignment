@@ -3,7 +3,10 @@
 // concerns.
 package domain
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // Sentinel domain errors. Callers should use errors.Is to check for these,
 // since implementations may wrap them with additional context.
@@ -20,3 +23,17 @@ var (
 	ErrInvalidStateTransition = errors.New("invalid transfer state transition")
 	ErrInvalidWalletID        = errors.New("walletId is invalid")
 )
+
+// WalletNotFoundError identifies the wallet that could not be found while
+// preserving errors.Is(err, ErrWalletNotFound) compatibility.
+type WalletNotFoundError struct {
+	ID string
+}
+
+func (e WalletNotFoundError) Error() string {
+	return fmt.Sprintf("wallet %q not found", e.ID)
+}
+
+func (e WalletNotFoundError) Unwrap() error {
+	return ErrWalletNotFound
+}

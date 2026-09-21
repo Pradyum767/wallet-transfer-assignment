@@ -14,10 +14,8 @@ import (
 // TestCreateTransfer_ConcurrentDebits fires many concurrent transfers out of
 // the same wallet and asserts the final balance and ledger are exactly what
 // a serial execution would produce, with no lost updates or double
-// spending. The in-memory UnitOfWork serializes transactions the same way a
-// database transaction with row locks would, so this exercises the
-// service's concurrency contract end-to-end; the Postgres locking strategy
-// itself is covered separately by the integration test.
+// spending. This exercises the service's concurrency contract against real
+// PostgreSQL transactions and row locks.
 func TestCreateTransfer_ConcurrentDebits(t *testing.T) {
 	transfers, wallets := newTestServices(t)
 	ctx := context.Background()

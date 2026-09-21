@@ -26,12 +26,13 @@ type dbtx interface {
 
 // UnitOfWork implements repository.UnitOfWork on top of a pgx connection pool.
 type UnitOfWork struct {
-	pool *pgxpool.Pool
+	pool             *pgxpool.Pool
+	maxClaimAttempts int
 }
 
 // NewUnitOfWork wraps an existing pool.
-func NewUnitOfWork(pool *pgxpool.Pool) *UnitOfWork {
-	return &UnitOfWork{pool: pool}
+func NewUnitOfWork(pool *pgxpool.Pool, maxClaimAttempts int) *UnitOfWork {
+	return &UnitOfWork{pool: pool, maxClaimAttempts: maxClaimAttempts}
 }
 
 // Execute runs fn inside a single read-committed transaction with explicit
@@ -52,7 +53,7 @@ func (u *UnitOfWork) Execute(ctx context.Context, fn func(ctx context.Context, r
 		Wallets:     &walletRepo{db: tx},
 		Transfers:   &transferRepo{db: tx},
 		Ledger:      &ledgerRepo{db: tx},
-		Idempotency: &idempotencyRepo{db: tx},
+		Idempotency: &idempotencyRepo{db: tx, maxClaimAttempts: u.maxClaimAttempts},
 	}
 
 	if err := fn(ctx, repos); err != nil {

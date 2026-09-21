@@ -12,14 +12,14 @@ import (
 )
 
 // TLSConfig returns secure defaults for the server's TLS configuration. When
-// DefaultSSL is enabled without certificate files, it supplies an ephemeral
+// SSL is enabled without certificate files, it supplies an ephemeral
 // self-signed certificate so the HTTPS server can start without external files.
 func (c Config) TLSConfig() (*tls.Config, error) {
 	config := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 		NextProtos: []string{"h2", "http/1.1"},
 	}
-	if c.DefaultSSL && c.TLSCertFile == "" && c.TLSKeyFile == "" {
+	if c.SSLEnabled && c.TLSCertFile == "" && c.TLSKeyFile == "" {
 		certificate, err := defaultCertificate()
 		if err != nil {
 			return nil, err

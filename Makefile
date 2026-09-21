@@ -15,7 +15,7 @@ run: ## Run the API server locally (requires DATABASE_URL / Postgres running)
 build: ## Compile the server binary
 	go build -o bin/server ./cmd/server
 
-test: ## Run unit and service tests (no database required)
+test: ## Run service and HTTP tests with repository mocks
 	go test ./... -cover
 
 test-integration: ## Run Postgres integration tests (requires a running Postgres)

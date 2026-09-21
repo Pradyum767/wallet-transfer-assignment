@@ -11,16 +11,12 @@ import (
 )
 
 type idempotencyRepo struct {
-	db dbtx
+	db               dbtx
+	maxClaimAttempts int
 }
 
-// maxClaimAttempts bounds the rare race where a concurrent duplicate's
-// transaction rolls back between our failed insert and our follow-up
-// select, which would otherwise require an unbounded retry loop.
-const maxClaimAttempts = 3
-
 func (r *idempotencyRepo) Claim(ctx context.Context, key, requestHash string) (bool, *domain.IdempotencyRecord, error) {
-	for attempt := 0; attempt < maxClaimAttempts; attempt++ {
+	for attempt := 0; attempt < r.maxClaimAttempts; attempt++ {
 		var inserted string
 		err := r.db.QueryRow(ctx, `
 			INSERT INTO idempotency_records (key, request_hash, created_at)

@@ -49,7 +49,7 @@ func run() error {
 		return err
 	}
 
-	uow := postgres.NewUnitOfWork(pool)
+	uow := postgres.NewUnitOfWork(pool, cfg.MaxClaimAttempts)
 	transferService := service.NewTransferService(uow, service.WithLogger(logger))
 	walletService := service.NewWalletService(uow, service.WithLogger(logger))
 
@@ -69,7 +69,7 @@ func run() error {
 	go func() {
 		serve := server.ListenAndServe
 		protocol := "http"
-		if cfg.TLSConfigured() {
+		if cfg.SSLEnabled {
 			serve = func() error {
 				return server.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
 			}

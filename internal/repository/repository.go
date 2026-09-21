@@ -1,7 +1,6 @@
 // Package repository defines persistence-facing interfaces used by the
-// service layer. Concrete implementations live in the postgres and memory
-// subpackages; the service layer depends only on these interfaces so it can
-// be tested without a real database and swapped between backends.
+// service layer. The concrete implementation lives in the postgres subpackage;
+// the service layer depends only on these interfaces.
 package repository
 
 import (

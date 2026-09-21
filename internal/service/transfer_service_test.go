@@ -6,15 +6,15 @@ import (
 	"testing"
 
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/domain"
-	"github.com/wallet-transfer-assignment/wallet-transfer/internal/repository/memory"
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/service"
+	"github.com/wallet-transfer-assignment/wallet-transfer/internal/testutil"
 )
 
-// newTestServices wires a TransferService and WalletService against a fresh
-// in-memory store, giving each test full isolation.
+// newTestServices wires a TransferService and WalletService against an
+// isolated repository mock.
 func newTestServices(t *testing.T) (*service.TransferService, *service.WalletService) {
 	t.Helper()
-	uow := memory.NewUnitOfWork(memory.NewStore())
+	uow := testutil.NewMockUnitOfWork()
 	return service.NewTransferService(uow), service.NewWalletService(uow)
 }
 
@@ -229,6 +229,9 @@ func TestCreateTransfer_WalletNotFound_KeyNotConsumed(t *testing.T) {
 	})
 	if !errors.Is(err, domain.ErrWalletNotFound) {
 		t.Fatalf("err = %v, want ErrWalletNotFound", err)
+	}
+	if err.Error() != `wallet "does-not-exist" not found` {
+		t.Fatalf("err = %q, want missing wallet ID", err)
 	}
 
 	// The idempotency key must not be consumed by a request that failed
