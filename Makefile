@@ -1,5 +1,5 @@
-DATABASE_URL ?= postgres://wallet:wallet@localhost:5432/wallet_transfer?sslmode=disable
-TEST_DATABASE_URL ?= $(DATABASE_URL)
+DATABASE_URL ?= postgres://admin:<password>@localhost:5432/mydb?sslmode=disable
+TEST_DATABASE_URL ?=
 
 .PHONY: up down run build test test-integration lint fmt-check tidy
 
@@ -18,7 +18,7 @@ build: ## Compile the server binary
 test: ## Run service and HTTP tests with repository mocks
 	go test ./... -cover
 
-test-integration: ## Run Postgres integration tests (requires a running Postgres)
+test-integration: ## Run Postgres integration tests (starts Testcontainers by default)
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -tags=integration ./internal/repository/postgres/... -v
 
 lint: ## Run golangci-lint

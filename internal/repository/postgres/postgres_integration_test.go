@@ -4,12 +4,8 @@
 // pgx-based repositories and row-level locking behave correctly under real
 // concurrent transactions.
 //
-// Run with a live Postgres reachable at TEST_DATABASE_URL, e.g. via the
-// bundled docker-compose.yml:
-//
-//	docker compose up -d postgres
-//	TEST_DATABASE_URL="postgres://user:password@localhost:5432/database?sslmode=disable" \
-//	  go test -tags=integration ./internal/repository/postgres/... -v
+// By default, tests start a disposable PostgreSQL container with Testcontainers.
+// Set TEST_DATABASE_URL to use an already-running PostgreSQL instance instead.
 package postgres_test
 
 import (
@@ -22,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/migrations"
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/repository/postgres"
@@ -32,7 +29,26 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping Postgres integration tests")
+		ctx := context.Background()
+		container, err := postgres.Run(
+			ctx,
+			"postgres:16-alpine",
+			postgres.WithDatabase("wallet_transfer"),
+			postgres.WithUsername("wallet"),
+			postgres.WithPassword("wallet"),
+		)
+		if err != nil {
+			t.Fatalf("start PostgreSQL test container: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := container.Terminate(ctx); err != nil {
+				t.Errorf("terminate PostgreSQL test container: %v", err)
+			}
+		})
+		dsn, err = container.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			t.Fatalf("get PostgreSQL test container connection string: %v", err)
+		}
 	}
 
 	ctx := context.Background()

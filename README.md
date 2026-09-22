@@ -43,7 +43,7 @@ concurrency design notes.
 ### Requirements
 
 - Go 1.27+
-- Docker (for local PostgreSQL via `docker-compose.yml`), or any reachable
+- Docker (for local PostgreSQL and Testcontainers), or any reachable
   PostgreSQL instance
 
 ### Run locally
@@ -72,8 +72,12 @@ curl -X POST localhost:8080/transfers -d '{
 
 ```bash
 make test              # service + HTTP tests with repository mocks
-make test-integration  # Postgres-backed concurrency/idempotency tests
+make test-integration  # starts disposable Postgres with Testcontainers
 ```
+
+The integration tests require a running Docker daemon and start a disposable
+PostgreSQL 16 container automatically. To use an already-running PostgreSQL
+instance instead, set `TEST_DATABASE_URL` before running `make test-integration`.
 
 ### HTTPS configuration
 

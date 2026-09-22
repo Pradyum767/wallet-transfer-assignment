@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/domain"
 	"github.com/wallet-transfer-assignment/wallet-transfer/internal/service"
@@ -16,6 +17,32 @@ func newTestServices(t *testing.T) (*service.TransferService, *service.WalletSer
 	t.Helper()
 	uow := testutil.NewMockUnitOfWork()
 	return service.NewTransferService(uow), service.NewWalletService(uow)
+}
+
+func TestTransferServiceOptions(t *testing.T) {
+	wantTime := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+	transfers, wallets := func() (*service.TransferService, *service.WalletService) {
+		uow := testutil.NewMockUnitOfWork()
+		opts := []service.Option{
+			service.WithClock(func() time.Time { return wantTime }),
+			service.WithIDGenerator(func() string { return "fixed-id" }),
+		}
+		return service.NewTransferService(uow, opts...), service.NewWalletService(uow, opts...)
+	}()
+	seedWallet(t, wallets, "wallet_1", 100)
+	seedWallet(t, wallets, "wallet_2", 0)
+	result, err := transfers.CreateTransfer(context.Background(), service.CreateTransferInput{
+		IdempotencyKey: "options",
+		FromWalletID:   "wallet_1",
+		ToWalletID:     "wallet_2",
+		Amount:         10,
+	})
+	if err != nil {
+		t.Fatalf("CreateTransfer: %v", err)
+	}
+	if result.Transfer.ID != "fixed-id" || !result.Transfer.CreatedAt.Equal(wantTime) {
+		t.Fatalf("transfer = %#v, want fixed ID and timestamp", result.Transfer)
+	}
 }
 
 func seedWallet(t *testing.T, wallets *service.WalletService, id string, balance int64) {
